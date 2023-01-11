@@ -1,0 +1,64 @@
+use opencv::{
+    core::{self, Point, absdiff},
+    highgui::{self, WINDOW_AUTOSIZE},
+    imgproc::{
+        self, bounding_rect, rectangle, CHAIN_APPROX_SIMPLE, COLOR_RGB2GRAY, LINE_8, RETR_EXTERNAL,
+        THRESH_BINARY,
+    },
+    prelude::*,
+    videoio::{VideoCapture, CAP_ANY},
+};
+
+fn main() -> ! {
+    let mut cam = VideoCapture::new(1, CAP_ANY).unwrap();
+    highgui::named_window("woo", WINDOW_AUTOSIZE).unwrap();
+
+    let mut frame = Mat::default();
+    let mut prev_frame: Option<Mat> = None;
+    let mut greyscaled_frame = Mat::default();
+    let mut diff_frame = Mat::default();
+    let mut thresh_frame = Mat::default();
+    let mut contours: core::Vector<core::Vector<Point>> = core::Vector::new();
+    // cam.read(&mut frame).unwrap();
+
+    loop {
+        cam.read(&mut frame).unwrap();
+        imgproc::cvt_color(&frame, &mut greyscaled_frame, COLOR_RGB2GRAY, 0).unwrap();
+        if let None = prev_frame {
+            prev_frame = Some(greyscaled_frame.clone());
+            continue;
+        }
+
+        let previous_frame = prev_frame.clone().unwrap();
+        absdiff(&greyscaled_frame, &previous_frame, &mut diff_frame).unwrap();
+
+        imgproc::threshold(&diff_frame, &mut thresh_frame, 25., 255., THRESH_BINARY).unwrap();
+
+        imgproc::find_contours(
+            &thresh_frame,
+            &mut contours,
+            RETR_EXTERNAL,
+            CHAIN_APPROX_SIMPLE,
+            Point::new(0, 0),
+        )
+        .unwrap();
+
+        for contour in contours.clone() {
+            if imgproc::contour_area(&contour, false).unwrap() > 1000. {
+                let rec = bounding_rect(&contour).unwrap();
+                rectangle(
+                    &mut frame,
+                    rec,
+                    core::Scalar::new(0., 255., 0., 255.),
+                    2,
+                    LINE_8,
+                    0,
+                )
+                .unwrap();
+            }
+        }
+        let a = highgui::imshow("woo", &frame);
+        println!("{:?}", a);
+        prev_frame = Some(greyscaled_frame.clone());
+    }
+}
