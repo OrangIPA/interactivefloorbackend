@@ -16,9 +16,6 @@ use std::{
     thread,
 };
 
-// #[allow(unused_imports)]
-// use autopilot::{key, mouse};
-
 fn main() -> Result<()> {
     // Create camera object and initialize window
     let mut cam = videoio::VideoCapture::new(1, videoio::CAP_ANY)?;
@@ -34,17 +31,11 @@ fn main() -> Result<()> {
     let mut contours: core::Vector<core::Vector<Point>> = core::Vector::new();
 
     let c: Arc<Mutex<Vec<(i32, i32)>>> = Arc::new(Mutex::new(vec![]));
-    // let mut chill: i32 = 0;
-    // #[allow(unused)]let mut play = false;
 
     // Get camera size
-    // cam.read(&mut frame)?;
-    // let frame_size = frame.mat_size().to_vec();
-    // #[allow(unused)]let (cam_width, cam_height) = (frame_size.get(0).unwrap(), frame_size.get(1).unwrap());
-
-    // highgui::named_window("screen size", WND_PROP_FULLSCREEN)?;
-    // highgui::set_window_property("screen size", WND_PROP_FULLSCREEN, WINDOW_FULLSCREEN as f64)?;
-    // let (screen_width, screen_height) = (get_window_image_rect("screen size")?.width, get_window_image_rect("screen size")?.height);
+    cam.read(&mut frame)?;
+    let frame_size = frame.mat_size().to_vec();
+    let (cam_width, cam_height) = (frame_size.get(0).unwrap(), frame_size.get(1).unwrap());
 
     let c_clone = Arc::clone(&c);
     thread::spawn(move || {
@@ -119,8 +110,6 @@ fn main() -> Result<()> {
             let bounding_rect = imgproc::bounding_rect(&contour)?;
 
             let (x, y) = (bounding_rect.x, bounding_rect.y);
-            // #[allow(unused_variables)]
-            // let loc = (bounding_rect.x, bounding_rect.y);
             imgproc::rectangle(
                 &mut frame,
                 bounding_rect,
@@ -131,22 +120,6 @@ fn main() -> Result<()> {
             )?;
             
             coor.push((x, y));
-
-            // Click section
-            // if chill > 10 {
-            //     if play {
-            //         mouse::move_to(autopilot::geometry::Point {
-            //             x: (loc.0 as f64),
-            //             y: (loc.1 as f64),
-            //         })
-            //         .unwrap();
-            //         mouse::click(mouse::Button::Left, None);
-            //     }
-            //     chill = 0
-            // } else {
-            //     chill += 1;
-            // }
-            // End click section
         }
 
         highgui::imshow("woo", &frame)?;
@@ -159,9 +132,6 @@ fn main() -> Result<()> {
 }
 
 fn handle_connection(mut stream: TcpStream, c: Arc<Mutex<Vec<(i32, i32)>>>) {
-    // let buf_reader = BufReader::new(&mut stream);
-    // let request_line = buf_reader.lines().next().unwrap().unwrap();
-
     let status_line = "HTTP/1.1 200 OK";
 
 
