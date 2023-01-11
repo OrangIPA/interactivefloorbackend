@@ -30,12 +30,15 @@ fn main() -> Result<()> {
     let mut thresh_frame = Mat::default();
     let mut contours: core::Vector<core::Vector<Point>> = core::Vector::new();
 
-    let c: Arc<Mutex<Vec<(i32, i32)>>> = Arc::new(Mutex::new(vec![]));
+    let c: Arc<Mutex<Vec<(f32, f32)>>> = Arc::new(Mutex::new(vec![]));
 
     // Get camera size
     cam.read(&mut frame)?;
     let frame_size = frame.mat_size().to_vec();
-    let (cam_width, cam_height) = (frame_size.get(0).unwrap(), frame_size.get(1).unwrap());
+    let (cam_width, cam_height) = (
+        frame_size.get(0).unwrap().to_owned() as f32,
+        frame_size.get(1).unwrap().to_owned() as f32,
+    );
 
     let c_clone = Arc::clone(&c);
     thread::spawn(move || {
@@ -108,8 +111,11 @@ fn main() -> Result<()> {
                 continue;
             } // Too small; continue
             let bounding_rect = imgproc::bounding_rect(&contour)?;
-
-            let (x, y) = (bounding_rect.x, bounding_rect.y);
+            
+            let (x, y) = (
+                (bounding_rect.x + (bounding_rect.height / 2)) as f32 / cam_height,
+                (bounding_rect.y + (bounding_rect.width / 2)) as f32 / cam_width,
+            );
             imgproc::rectangle(
                 &mut frame,
                 bounding_rect,
@@ -118,7 +124,7 @@ fn main() -> Result<()> {
                 LINE_8,
                 0,
             )?;
-            
+
             coor.push((x, y));
         }
 
@@ -131,9 +137,8 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn handle_connection(mut stream: TcpStream, c: Arc<Mutex<Vec<(i32, i32)>>>) {
+fn handle_connection(mut stream: TcpStream, c: Arc<Mutex<Vec<(f32, f32)>>>) {
     let status_line = "HTTP/1.1 200 OK";
-
 
     let mut contents = "[".to_owned();
     let c = (*c).lock().unwrap();
@@ -143,7 +148,6 @@ fn handle_connection(mut stream: TcpStream, c: Arc<Mutex<Vec<(i32, i32)>>>) {
             continue;
         }
         contents = format!("{contents}, [{}, {}]", c.0, c.1);
-
     }
     contents = format!("{contents}]");
     let length = contents.len();
