@@ -9,16 +9,15 @@ use opencv::{
     videoio, Result,
 };
 
-use std::{
-    io::prelude::*,
-    net::{TcpListener, TcpStream},
-    sync::{Arc, Mutex},
-    thread,
-};
+use std::fs;
 
 fn main() -> Result<()> {
     // Create camera object and initialize window
-    let mut cam = videoio::VideoCapture::new(1, videoio::CAP_ANY)?;
+    let cam_index = fs::read_to_string("cam-index.txt")
+        .unwrap()
+        .parse::<i32>()
+        .unwrap();
+    let mut cam = videoio::VideoCapture::new(cam_index, videoio::CAP_ANY)?;
     highgui::named_window("woo", highgui::WINDOW_AUTOSIZE)?;
 
     // Variable declaration
@@ -29,8 +28,7 @@ fn main() -> Result<()> {
     let mut dilated_frame = Mat::default();
     let mut thresh_frame = Mat::default();
     let mut contours: core::Vector<core::Vector<Point>> = core::Vector::new();
-
-    let c: Arc<Mutex<Vec<(f32, f32)>>> = Arc::new(Mutex::new(vec![]));
+    let mut c: Vec<(f32, f32)>;
 
     // Get camera size
     cam.read(&mut frame)?;
@@ -39,20 +37,8 @@ fn main() -> Result<()> {
         frame_size.get(0).unwrap().to_owned() as f32,
         frame_size.get(1).unwrap().to_owned() as f32,
     );
-
-    let c_clone = Arc::clone(&c);
-    thread::spawn(move || {
-        let c = c_clone;
-        let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
-
-        for stream in listener.incoming() {
-            let stream = stream.unwrap();
-
-            handle_connection(stream, Arc::clone(&c));
-        }
-    });
-
     loop {
+        c = vec![];
         // Insert the camera output to variable frame
         cam.read(&mut frame)?;
 
@@ -104,18 +90,20 @@ fn main() -> Result<()> {
         )?;
         // imgproc::draw_contours(&mut frame, &contours, -1, VecN::new(0., 255., 0., 255.), 2, LINE_AA, &Mat::default(), 255, Point::new(0, 0))?;
 
-        let mut coor = (*c).lock().unwrap();
-        *coor = vec![];
         for contour in contours.clone() {
             if imgproc::contour_area(&contour, false)? < 10000. {
                 continue;
             } // Too small; continue
             let bounding_rect = imgproc::bounding_rect(&contour)?;
-            
+
+            #[allow(unused_variables)]
             let (x, y) = (
                 (bounding_rect.x + (bounding_rect.height / 2)) as f32 / cam_height,
                 (bounding_rect.y + (bounding_rect.width / 2)) as f32 / cam_width,
             );
+
+            c.push((x, y));
+
             imgproc::rectangle(
                 &mut frame,
                 bounding_rect,
@@ -124,9 +112,25 @@ fn main() -> Result<()> {
                 LINE_8,
                 0,
             )?;
-
-            coor.push((x, y));
         }
+
+        // let mut contents = "[".to_owned();
+        // for (i, c) in c.clone().into_iter().enumerate() {
+        //     if i == 0 {
+        //         contents = format!("{contents}[{}, {}]\n", c.0, c.1);
+        //         continue;
+        //     }
+        //     contents = format!("{contents}, [{}, {}]\n", c.0, c.1);
+        // }
+        // contents = format!("{contents}]");
+        let mut contents = "".to_owned();
+        for c in c.into_iter() {
+            contents = format!("{contents}{} {}\n", c.0, c.1);
+        }
+
+        fs::write("yahahahayyuukk.txt", contents).unwrap_or_else(|e| {
+            eprintln!("error: {e}");
+        });
 
         highgui::imshow("woo", &frame)?;
         // highgui::imshow("woo", &thresh_frame)?;
@@ -135,24 +139,4 @@ fn main() -> Result<()> {
         }
     }
     Ok(())
-}
-
-fn handle_connection(mut stream: TcpStream, c: Arc<Mutex<Vec<(f32, f32)>>>) {
-    let status_line = "HTTP/1.1 200 OK";
-
-    let mut contents = "[".to_owned();
-    let c = (*c).lock().unwrap();
-    for (i, c) in c.clone().into_iter().enumerate() {
-        if i == 0 {
-            contents = format!("{contents}[{}, {}]", c.0, c.1);
-            continue;
-        }
-        contents = format!("{contents}, [{}, {}]", c.0, c.1);
-    }
-    contents = format!("{contents}]");
-    let length = contents.len();
-
-    let response = format!("{status_line}\r\nContent-Length: {length}\r\nContent-Type:application/json\r\n\r\n{contents}");
-
-    stream.write_all(response.as_bytes()).unwrap();
 }
