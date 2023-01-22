@@ -67,7 +67,7 @@ pub fn json_to_config(v: &str) -> Config {
     let ret = match serde_json::from_str::<Config>(v) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("error: {}, config.json will overridden with default value and continuing with default parameter", e);
+            eprintln!("error: {}, config.json will overridden with default value. continuing with default parameter", e);
             fs::write("config.json", DEFAULT_JSON).unwrap_or_else(|e| {
                 eprintln!("{e}");
             });
