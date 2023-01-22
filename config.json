@@ -1,0 +1,16 @@
+{
+    "cam_index": 1,
+    "gaussian_blur": {
+        "ksize_width": 5,
+        "ksize_heigth": 5,
+        "sigma_x": 0.0,
+        "sigma_y": 0.0
+    },
+    "kernel_rows": 35,
+    "kernel_cols": 35,
+    "threshold": {
+        "thresh": 20.0,
+        "maxval": 255.0
+    },
+    "min_contour_area": 10000.0
+}

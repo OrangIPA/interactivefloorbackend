@@ -1,3 +1,4 @@
+use interactivefloorbackend::{Config, json_to_config, DEFAULT_JSON};
 use opencv::{
     core::{self, absdiff, Point, Size_, BORDER_CONSTANT, BORDER_DEFAULT, CV_8U},
     highgui::{self, wait_key},
@@ -9,15 +10,32 @@ use opencv::{
     videoio, Result,
 };
 
-use std::fs;
+use std::{fs, io::ErrorKind};
 
 fn main() -> Result<()> {
+    let read = match fs::read_to_string("config.json") {
+        Ok(v) => v,
+        Err(e) => match e.kind(){
+            ErrorKind::NotFound => match fs::write("config.json", DEFAULT_JSON){
+                Ok(_) => {
+                    eprintln!("config.json not found, using the default parameter");
+                    DEFAULT_JSON.to_owned()
+                },
+                Err(_) => {
+                    eprintln!("config.json not found, error creating one, using the default parameter");
+                    DEFAULT_JSON.to_owned()
+                }
+            },
+            _ => {
+                eprintln!("{e}");
+                DEFAULT_JSON.to_owned()
+            }
+        }
+    };
+    let config: Config = json_to_config(&read);
+
     // Create camera object and initialize window
-    let cam_index = fs::read_to_string("cam-index.txt")
-        .unwrap()
-        .parse::<i32>()
-        .unwrap();
-    let mut cam = videoio::VideoCapture::new(cam_index, videoio::CAP_ANY)?;
+    let mut cam = videoio::VideoCapture::new(config.cam_index, videoio::CAP_ANY)?;
     highgui::named_window("woo", highgui::WINDOW_AUTOSIZE)?;
 
     // Variable declaration
@@ -47,9 +65,9 @@ fn main() -> Result<()> {
         imgproc::gaussian_blur(
             &grayscaled_frame,
             &mut blurred_image,
-            Size_::new(5, 5),
-            0.,
-            0.,
+            Size_::new(config.gaussian_blur.ksize_width, config.gaussian_blur.ksize_heigth),
+            config.gaussian_blur.sigma_x,
+            config.gaussian_blur.sigma_y,
             BORDER_DEFAULT,
         )?;
 
@@ -66,7 +84,7 @@ fn main() -> Result<()> {
         previous_frame = Some(blurred_image.clone());
 
         // Dilute the image a bit
-        let kernel = Mat::ones(35, 35, CV_8U)?;
+        let kernel = Mat::ones(config.kernel_rows, config.kernel_cols, CV_8U)?;
         imgproc::dilate(
             &diff_frame,
             &mut dilated_frame,
@@ -78,7 +96,7 @@ fn main() -> Result<()> {
         )?;
 
         // Only take different area that are above the threshold
-        imgproc::threshold(&dilated_frame, &mut thresh_frame, 20., 255., THRESH_BINARY)?;
+        imgproc::threshold(&dilated_frame, &mut thresh_frame, config.threshold.thresh, config.threshold.maxval, THRESH_BINARY)?;
 
         // Find and draw contours
         imgproc::find_contours(
@@ -91,7 +109,7 @@ fn main() -> Result<()> {
         // imgproc::draw_contours(&mut frame, &contours, -1, VecN::new(0., 255., 0., 255.), 2, LINE_AA, &Mat::default(), 255, Point::new(0, 0))?;
 
         for contour in contours.clone() {
-            if imgproc::contour_area(&contour, false)? < 10000. {
+            if imgproc::contour_area(&contour, false)? < config.min_contour_area {
                 continue;
             } // Too small; continue
             let bounding_rect = imgproc::bounding_rect(&contour)?;
